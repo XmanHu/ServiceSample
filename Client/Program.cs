@@ -4,6 +4,8 @@ namespace Client
     using System;
     using Microsoft.Telepathy.Session;
     using CalcService;
+    using System.Text;
+    using System.Collections.Generic;
 
     class Program
     {
@@ -11,47 +13,80 @@ namespace Client
 
         private static string server = "localhost";
 
+        private static int requestNum = 500;
+
+        private static readonly Random rnd = new Random();
+
+        private static Dictionary<Guid, AddRequest> dic = new Dictionary<Guid, AddRequest>();
+
         static void Main(string[] args)
         {
-            Console.WriteLine(string.Format("[{0:HH:mm:ss.fff}] ", DateTime.Now) + "Start Client\n");
+            WriteLog("Start Client");
 
+            //Set headnode if not localhost
             if (args.Length > 0)
             {
                 server = args[0];
             }
 
+            //Create requests
+            for (int i = 0; i < requestNum; i++)
+            {
+                var guid = Guid.NewGuid();
+                dic.Add(guid, new AddRequest(rnd.Next(1, 100), rnd.Next(1, 100)));
+            }
+
+            //Set Session Start Info
             SessionStartInfo startInfo = new SessionStartInfo(server, serviceName);
             startInfo.SessionResourceUnitType = SessionUnitType.Node;
             startInfo.Secure = false;
 
-
+            //Create Session
             using (Session session = Session.CreateSession(startInfo))
             {
-                Console.WriteLine(string.Format("[{0:HH:mm:ss.fff}] ", DateTime.Now) + "Session " + session.Id + " is created.\n");
+                WriteLog("Session " + session.Id + " is created.");
 
                 string guid = Guid.NewGuid().ToString();
 
+                //Create Client
                 using (BrokerClient<ICalcService> client = new BrokerClient<ICalcService>(guid, session))
                 {
-                    client.SendRequest(new AddRequest(1.2, 2.3));
+                    //send requests
+                    foreach (var item in dic)
+                    {
+                        client.SendRequest(item.Value, new System.Xml.UniqueId(item.Key));
+                    }
+
                     client.EndRequests();
-
-                    Console.WriteLine(string.Format("[{0:HH:mm:ss.fff}] ", DateTime.Now) + "Request sent. 1.2 + 2.3 = \n");
-
+                    WriteLog("All requests have been sent.");
+                    
+                    //get response
                     foreach (var response in client.GetResponses<AddResponse>())
                     {
-                        Console.WriteLine(string.Format("[{0:HH:mm:ss.fff}] ", DateTime.Now) + "1.2 + 2.3 = " + response.Result.AddResult + "\n");
+                        AddRequest request = dic[response.RequestMessageId];
+                        WriteLog(request.a + " + " + request.b + " = " +response.Result.AddResult);
                     }
+
+                    WriteLog("All responses have been received.");
 
                     client.Close();
                 }
-
+                //close session
                 session.Close();
-                Console.WriteLine(string.Format("[{0:HH:mm:ss.fff}] ", DateTime.Now) + "Session closed.\n");
+                WriteLog("Session closed.");
             }
-
-            Console.WriteLine("Press any key to exit");
-            Console.ReadKey();
         }
+
+        static void WriteLog(string body)
+        {
+            StringBuilder sb = new StringBuilder(string.Format("[{0:HH:mm:ss.fff}] ", DateTime.Now));
+            sb.Append(body);
+            Console.WriteLine(sb);
+            Console.WriteLine();
+        }
+    }
+
+    internal class Dictionary
+    {
     }
 }
