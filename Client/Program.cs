@@ -85,8 +85,4 @@ namespace Client
             Console.WriteLine();
         }
     }
-
-    internal class Dictionary
-    {
-    }
 }
